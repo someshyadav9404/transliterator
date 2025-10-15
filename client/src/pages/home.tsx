@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/accordion";
 import { RotateCcw } from "lucide-react";
 import type { TransliterationDirection } from "@shared/schema";
+import { extractTextFromImage } from "@/lib/ocr";
+import { transliterateText, isDevanagariText } from "@/lib/transliterate";
 
 type ProcessingStatus = "idle" | "processing" | "success" | "error";
 
@@ -31,12 +33,38 @@ export default function Home() {
     setExtractedText("");
     setTransliteratedText("");
 
-    // OCR and transliteration will be implemented in phase 3
-    // For now, this is a placeholder
-    setTimeout(() => {
+    try {
+      // Determine OCR language based on direction
+      // If en-to-hi, we expect English text, so use "eng"
+      // If hi-to-en, we expect Hindi text, so use "hin" (if available) or "eng"
+      const ocrLanguage = direction === "hi-to-en" ? "hin" : "eng";
+      
+      setStatusMessage(`Extracting ${direction === "hi-to-en" ? "Hindi" : "English"} text...`);
+      const { text, confidence } = await extractTextFromImage(imageSrc, ocrLanguage);
+
+      // Check if text is empty or only whitespace
+      if (!text || text.trim().length === 0) {
+        setStatus("error");
+        setStatusMessage("No text detected in the image. Try a clearer photo with better lighting.");
+        return;
+      }
+
+      setExtractedText(text);
+      
+      // Update status for transliteration
+      setStatusMessage("Transliterating text...");
+      
+      // Transliterate the extracted text
+      const transliterated = transliterateText(text, direction);
+      setTransliteratedText(transliterated);
+
       setStatus("success");
-      setStatusMessage("Ready for text extraction");
-    }, 1000);
+      setStatusMessage(`Text extracted successfully! (${Math.round(confidence)}% confidence)`);
+    } catch (error) {
+      console.error("OCR/Transliteration error:", error);
+      setStatus("error");
+      setStatusMessage("Failed to process image. Please ensure the image contains clear, readable text.");
+    }
   };
 
   const handleReset = () => {
